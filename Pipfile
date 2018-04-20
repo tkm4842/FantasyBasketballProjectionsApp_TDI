@@ -1,0 +1,21 @@
+[[source]]
+
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+
+[dev-packages]
+
+
+
+[packages]
+
+gunicorn = "==19.7.1"
+requests = "==2.18.4"
+quandl = "==3.3.0"
+
+
+[requires]
+
+python_version = "2.7"
