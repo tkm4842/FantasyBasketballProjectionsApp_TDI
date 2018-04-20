@@ -7,3 +7,4 @@ pip
 simplejson
 selenium
 beautifulsoup4
+sklearn
