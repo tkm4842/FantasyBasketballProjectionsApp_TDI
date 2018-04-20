@@ -1,4 +1,4 @@
 gunicorn==19.7.1
 requests==2.18.4
 quandl==3.3.0
-bs4==0.0.1 
+
