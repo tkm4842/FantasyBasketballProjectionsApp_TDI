@@ -229,7 +229,8 @@ def about():
 
 
 if __name__ == '__main__':
-	app.run(port=5003,debug=True)
+	#app.run(port=5003,debug=True)
+	app.run()
 	playerName='Damian Lillard'
 	obj=get_data(playerName)
 	data=obj.game_log['2018']
