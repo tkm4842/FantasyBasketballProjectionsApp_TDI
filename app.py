@@ -1,10 +1,3 @@
-from flask import Flask, render_template, request, redirect, jsonify
-from nba_stats import player_scraper, team_scraper, getTeamURLdict
-import numpy as np
-import pandas as pd
-import datetime as dt
-import dill
-
 
 from bokeh.embed import components
 from bokeh.models.widgets import DataTable, DateFormatter, TableColumn
@@ -15,6 +8,18 @@ from bokeh.plotting import figure
 import bokeh.layouts as layouts
 import bokeh.models.widgets as widgets
 from bokeh.resources import INLINE
+
+import csv
+import datetime as dt
+import dill
+
+
+from flask import Flask, render_template, request, redirect, jsonify
+
+import numpy as np
+import pandas as pd
+
+
 
 
 app = Flask(__name__)
@@ -37,20 +42,16 @@ features = ['G', #game number
 			]
 
 def get_data(playerName):
-	try:
-		pkl_source = 'pkl_obj/' + playerName.replace(" ", "") + '.dill'
-		a = dill.load(open(pkl_source, 'r'))
-	except:
-		a=player_scraper(playerName)
-	return a
+    pkl_source = 'pkl_obj/' + playerName.replace(" ", "") + '.dill'
+    a = dill.load(open(pkl_source, 'r'))
+    return a
+
+
 
 def get_teamdata(teamName):
-	try:
-		pkl_source = 'pkl_obj/' + teamName.replace(" ", "") + '.dill'
-		a = dill.load(open(pkl_source, 'r'))
-	except:
-		a=team_scraper(teamName)
-	return a
+    pkl_source = 'pkl_obj/' + teamName.replace(" ", "") + '.dill'
+    a = dill.load(open(pkl_source, 'r'))
+    return a
 
 def getOpponent(team, date_input,season=2018):
 
@@ -72,45 +73,45 @@ def getOpponent(team, date_input,season=2018):
 	return df.loc[date_input,'Opponent'], away, pic_opp
 
 
-def analyzer(obj, date, season='2018'):
+def analyzer(obj, date, opp_obj, season='2018'):
     data=obj.game_log[season]
     inputdate_datetime=dt.datetime.strptime(date,'%m/%d/%y')
     formatted_date=dt.datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d')
 
-    
-    feature_inputs = data[features][data['Date']==formatted_date].values #  e.g. days rest, game number, home/away
-    
-    
+    feature_inputs = data[features][data['Date']==formatted_date].astype('float').values #  e.g. days rest, game number, home/away
     cols=['Season Average','Predictions']
-    
-    
+
+    # If input data occurred in past, include results
     results=pd.DataFrame(index=cats, columns=cols)
     if inputdate_datetime<dt.datetime.now():
-        
         actual_results=data[cats][data['Date']==formatted_date].squeeze() 
         results['Actual'] = actual_results.astype('float')
-        
+    
+    # Get opponent average data, categories allowed / given up / caused
+    opp_gamelog=opp_obj.game_log['2018'].rename(columns={'OppPts':'OppPTS'})
+    opp_avg=[opp_gamelog['Opp'+cat].astype('float').mean() for cat in cats]
+
+    
+    # Call regressor models
     dummyReg=obj.models['2018']['dummyReg']
     RFG=obj.models['2018']['RFG']
-    for cat in cats:
-        results.loc[cat,'Season Average']= dummyReg[cat].predict(feature_inputs)[0]
-        results.loc[cat,'Predictions']= RFG[cat].predict(feature_inputs)[0]
     
+    # Get predictions from models based on feature input, including oppponent rating for each category
+    for i, cat in enumerate(cats):
+        temp_feature_inputs=feature_inputs
+        temp_feature_inputs=np.append(temp_feature_inputs,opp_avg[i])
+        results.loc[cat,'Season Average']= dummyReg[cat].predict([temp_feature_inputs])[0]
+        results.loc[cat,'Predictions']= RFG[cat].predict([temp_feature_inputs])[0]
     
-
     # Calculate percentages
     results.loc['FG%',:]=results.loc['FG',:].divide(results.loc['FGA',:])*100.
     results.loc['FT%',:]=results.loc['FT',:].divide(results.loc['FTA',:])*100.
 
-    
     # data formatting - sig figs
     results=results.applymap(lambda x: '{:.1f}'.format(x))
-
     if 'Actual' in results:
         results['Actual']=results['Actual'].astype('float').map(lambda x: '{:.0f}'.format(x))
 
-
-    
     # sort results by desired category order
     results=results.reindex(sorted_cats)
     #[tuple(i) for i in results.itertuples()]
@@ -131,13 +132,19 @@ def create_bokehtable(results):
     data_table.row_headers = False
     return data_table
 
-
+def getTeamURLdict():
+    reader=  csv.reader(open('teamURL.csv', 'r'))
+    d = {}
+    for row in reader:
+        k, v = row
+        d[k] = v
+    return d
     
 
 def create_featureimp_plot(obj, cat='PTS'):
 
     RFG=obj.models['2018']['RFG'][cat]
-    features=['Game Number','Days Rest','Home/Away']
+    features=['Game Number','Days Rest','Home/Away','Opponent Rating']
     groups= features
     counts = RFG.feature_importances_
 
@@ -146,7 +153,7 @@ def create_featureimp_plot(obj, cat='PTS'):
     p = figure(x_range=groups, plot_height=500, toolbar_location=None, title="Feature Importance - "+cat, y_range=(0,1.1))
     
     p.vbar(x='groups', top='counts', width=0.9, source=chart_data, 
-           line_color='white', fill_color=factor_cmap('groups', palette=["#962980","#295f96","#29966c"],
+           line_color='white', fill_color=factor_cmap('groups', palette=["#962980","#295f96","#29966c","#f1d4Af" ],
                                                       factors=groups))
 
     
@@ -175,7 +182,7 @@ def index():
 		team = obj.team
 		opponent, away, oppPic = getOpponent(team,date)
         
-		results, feature_inputs = analyzer(obj, date)
+		results, feature_inputs = analyzer(obj, date, get_teamdata(opponent))
         
         
         
