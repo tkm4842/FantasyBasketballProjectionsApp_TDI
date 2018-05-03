@@ -1,40 +1,38 @@
-#from nba_py import player
-from selenium import webdriver
+
 from bs4 import BeautifulSoup
-import pandas as pd
-import os
-from string import ascii_lowercase
+from collections import OrderedDict
 import cPickle as pickle
 import csv
-import re
-from datetime import timedelta as td
 import datetime as dt
+from datetime import timedelta as td
 import dill
-from collections import OrderedDict
-
+import os
+import pandas as pd
+import re
+import requests
+from selenium import webdriver
 from sklearn.dummy import DummyRegressor
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
+from string import ascii_lowercase
 
+pd.options.mode.chained_assignment = None
 
 player_base_url = 'https://www.basketball-reference.com/players/'
-
 
 def getPlayerURLdict(new=False):
     if new==True:
         all_names = dict()
         chromedriver = os.path.expanduser('~/Downloads/chromedriver')
         driver = webdriver.Chrome(chromedriver)
-
         for letter in ascii_lowercase:
             letter_url = player_base_url+letter
-
             driver.get(letter_url)
             htmlSource = driver.page_source
             soup = BeautifulSoup(htmlSource, 'html.parser')
             current_names = soup.findAll('strong')
             names = []
-            for i, n in enumerate(current_names):
+            for _, n in enumerate(current_names):
                 name_data = n.children.next()
                 try:
                     names.append((name_data.contents[0], 'http://www.basketball-reference.com' + name_data.attrs['href']))
@@ -47,7 +45,7 @@ def getPlayerURLdict(new=False):
         for key, val in all_names.items():
             w.writerow([key, val])
         return all_names
-        driver.close()
+        
     else:
         reader=  csv.reader(open('playerURL.csv', 'r'))
         d = {}
@@ -99,7 +97,6 @@ def getURL(playerName):
     url = player_base_url+lastnameletter
     return url
 
-
 def addhomeaway(df):
     df['Away']=0
     if 'Home/Away' in df.columns:
@@ -119,12 +116,37 @@ def addDaysRest(df):
             df.loc[i, 'daysRest'] = (date-prevdate).total_seconds()/(24*3600.)
     return df
 
+def addTeamGameLog(df,season):
+    # 3 letter team code
+    team=str(df['Tm'].unique()[0])
+    team_dict=getTeamURLdict()
+
+    # convert to full team name to access pkl
+    fullteam_name=[k for k,v in team_dict.iteritems() if team in v][0]
+    teampkl_source = 'pkl_obj/' +fullteam_name.replace(" ", "") + '.dill'
+    team_obj=dill.load(open(teampkl_source, 'r'))
+
+    # get team game log
+    teamlog=team_obj.game_log[season]
+
+    # rename pts to be consistent with other columns
+    team_log=teamlog.rename(columns={'Pts':'PTS'})
+    cols = ['Rk','PTS','FG','FGA','3P','3PA','FT','FTA','TRB','AST','STL','BLK','TOV']
+
+    # cats distinguised by _x for player, _y for team
+    new_player_log=pd.merge(df, team_log[cols], on=['Rk'], how='left')
+
+    # rename player cols to original i.e. drop _x
+    new_player_log.columns=[col.replace('_x','') if '_x' in col else col for col in new_player_log.columns ]
+    return new_player_log
+
 def getTeamSchedule(team,season):
     teamscheduleURL='https://www.basketball-reference.com/teams/'+team+'/'+str(season)+'_games.html'
     chromedriver = os.path.expanduser('~/Downloads/chromedriver')
     driver = webdriver.Chrome(chromedriver)
     driver.get(teamscheduleURL)
     htmlSource = driver.page_source
+ 
     soup = BeautifulSoup(htmlSource, 'html.parser')
     table = soup.find('div', class_="overthrow table_container", id="div_games")
     df = pd.read_html(table.prettify())[0]
@@ -154,18 +176,14 @@ def getPlayerPosition(soup):
                 p+=', '+pos_dict[pos]
     return p        
 
-class player_scraper():
+class playerScraper():
     def __init__(self,playerName):
         self.playerName=playerName
         self.getPlayerData()
 
     def getPlayerData(self):
-        #filename = 'PlayerGameLogs/'+self.playerName.replace(" ", "") + '_' + str(self.season) + 'GameLog.csv'
-
         playerURLdict = getPlayerURLdict()
         playerURL = playerURLdict[self.playerName]
-        chromedriver = os.path.expanduser('~/Downloads/chromedriver')
-        driver = webdriver.Chrome(chromedriver)
         url = playerURL
         url = re.sub('\.html$', '', url)
 
@@ -176,23 +194,22 @@ class player_scraper():
         for season in seasons:
             # Beautiful Soup on player gamelog html page
             playerGameLogURL = url+'/gamelog/'+season+'/'
-            driver.get(playerGameLogURL)
-            htmlSource = driver.page_source
-            soup = BeautifulSoup(htmlSource, 'html.parser')    
+            page = requests.get(playerGameLogURL)
+            soup = BeautifulSoup(page.content, 'html.parser')    
             table = soup.find('div', class_="overthrow table_container", id="div_pgl_basic")
             
             # Game Logs
             df = pd.read_html(table.prettify())[0]
             df = df[ (pd.notnull(df['G'])) & (df['G']!='G') ]
 
-            # Add attributes: home/away, days rest
+            # Add attributes: home/away, days rest, team game log (cat allowed by opponent)
             df = addhomeaway(df)
             df = addDaysRest(df)
-            df=df.convert_objects(convert_numeric=True)
+            df = addTeamGameLog(df, season)
             game_log[season]=df
             
             # Regression Models
-            models[season] = self.addRegressionModels(df)
+            models[season] = addRegressionModels(df)
 
         self.game_log=game_log
         self.models=models
@@ -218,42 +235,43 @@ class player_scraper():
         
         
         # Close driver
-        driver.close()
+        #driver.close()
         
 
 
+def addRegressionModels(data):
+    cats= ['FG','FGA','3P','3PA','FT','FTA','TRB','AST','STL','BLK','TOV','PTS']
+    features=['G','Away','daysRest'] # will include opponent rating by category when iterating through cats
+    
+    # Regression Models
+    models=dict()
+    models['dummyReg']=dict()
+    models['RFG']=dict()
+    for cat in cats:
+        # add opponent rating per category
+        temp_features=[] # clear everytime
+        temp_features+=features
+        temp_features.append(cat+'_y')
 
-    def addRegressionModels(self, data):
-        cats= ['FG','FGA','3P','3PA','FT','FTA','TRB','AST','STL','BLK','TOV','PTS']
-        features=['G','Away','daysRest']
+        # convert to numeric objects
+        X=data[temp_features].apply(pd.to_numeric)
+        yi=data[cat].apply(pd.to_numeric)
+
+        ## Dummy Regressor to return season averages regardless of predictions
+        dummyreg=DummyRegressor(strategy='mean')
+        dummyreg.fit(X,yi)
+        models['dummyReg'][cat]=dummyreg
         
-        # Regression Models
-        models=dict()
-        y=data[cats].convert_objects(convert_numeric=True) # must convert values to numeric, current dtype was object
-        X=data[features].convert_objects(convert_numeric=True)
-        
-        
-        models['dummyReg']=dict()
-        models['RFG']=dict()
-        
-        for cat in cats:
-            yi=y[cat]
-            
-            ## Dummy Regressor to return season averages regardless of predictions
-            dummyreg=DummyRegressor(strategy='mean')
-            dummyreg.fit(X,yi)
-            models['dummyReg'][cat]=dummyreg
-            
-            ## Random Forest Regressor
-            ### may need to use grid search to optimize/tune hyperparameters
-            RFG=RandomForestRegressor(min_samples_leaf=9)
-            RFG.fit(X,yi)
-            models['RFG'][cat]=RFG
-        
-        return models
+        ## Random Forest Regressor
+        ### may need to use grid search to optimize/tune hyperparameters
+        RFG=RandomForestRegressor(min_samples_leaf=9)
+        RFG.fit(X,yi)
+        models['RFG'][cat]=RFG
+    
+    return models
     
 
-class team_scraper():
+class teamScraper():
     def __init__(self,teamName):
         self.teamName=teamName
         self.game_log, self.pic, self.roster= self.getTeamData()
@@ -263,8 +281,8 @@ class team_scraper():
 
         teamURLdict = getTeamURLdict()
         teamURL = teamURLdict[self.teamName]
-        chromedriver = os.path.expanduser('~/Downloads/chromedriver')
-        driver = webdriver.Chrome(chromedriver)
+        #chromedriver = os.path.expanduser('~/Downloads/chromedriver')
+        #driver = webdriver.Chrome(chromedriver)
         url = 'https://www.basketball-reference.com'+teamURL
         #url = re.sub('\.html$', '', url)
 
@@ -279,10 +297,10 @@ class team_scraper():
 
         for season in seasons:
             teamGameLogURL = url+season+'/gamelog'
+            page = requests.get(teamGameLogURL)
+            soup = BeautifulSoup(page.content, 'html.parser')    
 
-            driver.get(teamGameLogURL)
-            htmlSource = driver.page_source
-            soup = BeautifulSoup(htmlSource, 'html.parser')
+            #soup = BeautifulSoup(htmlSource, 'html.parser')
 
             # Game Logs
             table = soup.find('div', class_="overthrow table_container", id="div_tgl_basic")
@@ -291,13 +309,11 @@ class team_scraper():
             df.columns=cols
             df = df[ (pd.notnull(df['G'])) & (df['G']!='G') ]
 
-
             df = addhomeaway(df)
             df = addDaysRest(df)
+            
             game_log[season]=df
             
-            
-
 
         # Team profile pic
         pic = soup.find('img', class_="teamlogo")
@@ -307,17 +323,17 @@ class team_scraper():
         # Roster
         roster=None
 
-        driver.close()
+        #driver.close()
         return game_log, pic_url, roster
 
 
 if __name__=="__main__":
     new=True
-   
+    '''
     team = 'Portland Trail Blazers'
     teampkl_source = 'pkl_obj/' + team.replace(" ", "") + '.dill'
     if new==True:
-        obj = team_scraper(team)
+        obj = teamScraper(team)
         dill.dump(obj, open(teampkl_source, 'w'))
     else:
         obj = dill.load(open(teampkl_source, 'r'))
@@ -327,13 +343,13 @@ if __name__=="__main__":
 
     pkl_source = 'pkl_obj/'+playerName.replace(" ","") + '.dill'
     if new==True:
-        obj = player_scraper(playerName)
+        obj = playerScraper(playerName)
         dill.dump(obj, open(pkl_source, 'w'))
     else:
         obj = dill.load(open(pkl_source, 'r'))
     
     print obj.height, obj.weight
-     '''
+    
 
     #df = addDaysRest(obj.df)
     #print addhomeaway(df)
