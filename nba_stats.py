@@ -8,13 +8,7 @@ import cPickle as pickle
 import csv
 import re
 from datetime import timedelta as td
-import datetime as dt
 import dill
-from collections import OrderedDict
-
-from sklearn.dummy import DummyRegressor
-from sklearn.model_selection import GridSearchCV
-from sklearn.ensemble import RandomForestRegressor
 
 
 player_base_url = 'https://www.basketball-reference.com/players/'
@@ -94,6 +88,8 @@ def getTeamURLdict(new=False):
 
 
 
+
+
 def getURL(playerName):
     lastnameletter = playerName.split(' ')[1][0].lower()
     url = player_base_url+lastnameletter
@@ -136,28 +132,10 @@ def getTeamSchedule(team,season):
     return df
 
 
-def getPlayerPosition(soup):
-    line=[x.get_text() for x in soup.findAll('p') if 'Position' in x.get_text()][0]
-    pos_dict = OrderedDict()
-    pos_dict['Point Guard']='PG'
-    pos_dict['Shooting Guard']='SG'
-    pos_dict['Small Forward']='SF'
-    pos_dict['Power Forward']='PF'
-    pos_dict['Center']='C'
-
-    p=''
-    for pos in pos_dict:
-        if pos in line:
-            if p=='':
-                p=pos_dict[pos]
-            else:
-                p+=', '+pos_dict[pos]
-    return p        
-
 class player_scraper():
     def __init__(self,playerName):
         self.playerName=playerName
-        self.getPlayerData()
+        self.game_log, self.pic, self.team = self.getPlayerData()
 
     def getPlayerData(self):
         #filename = 'PlayerGameLogs/'+self.playerName.replace(" ", "") + '_' + str(self.season) + 'GameLog.csv'
@@ -171,87 +149,35 @@ class player_scraper():
 
         seasons=[str(i) for i in xrange(2018,2019,1)]
         game_log = dict()
-        models = dict()
-              
         for season in seasons:
-            # Beautiful Soup on player gamelog html page
+
             playerGameLogURL = url+'/gamelog/'+season+'/'
             driver.get(playerGameLogURL)
             htmlSource = driver.page_source
-            soup = BeautifulSoup(htmlSource, 'html.parser')    
-            table = soup.find('div', class_="overthrow table_container", id="div_pgl_basic")
-            
+            soup = BeautifulSoup(htmlSource, 'html.parser')
+
             # Game Logs
+            table = soup.find('div', class_="overthrow table_container", id="div_pgl_basic")
             df = pd.read_html(table.prettify())[0]
             df = df[ (pd.notnull(df['G'])) & (df['G']!='G') ]
 
-            # Add attributes: home/away, days rest
             df = addhomeaway(df)
             df = addDaysRest(df)
-            df=df.convert_objects(convert_numeric=True)
-            game_log[season]=df
-            
-            # Regression Models
-            models[season] = self.addRegressionModels(df)
 
-        self.game_log=game_log
-        self.models=models
-        
+            game_log[season]=df
+
         # Player profile pic
         pic = soup.find('img', itemscope="image")
-        self.pic_url = str(pic['src'])
+        pic_url = str(pic['src'])
 
         # Team
-        self.team = str(df['Tm'].unique()[0])
-        
-        # Height, Weight, Age, position
-        height=soup.find("span", itemprop="height")
-        self.height=str(height.get_text())
-        
-        weight=soup.find("span", itemprop="weight")
-        self.weight=str(weight.get_text())
-        
-        bdate=soup.find("span", itemprop="birthDate")['data-birth']
-        self.age=str(int((dt.datetime.now()-dt.datetime.strptime(bdate,'%Y-%m-%d')).days/365.0))
-        
-        self.position=getPlayerPosition(soup)
-        
-        
-        # Close driver
+        team = str(df['Tm'].unique()[0])
+
         driver.close()
-        
+
+        return game_log, pic_url, team
 
 
-
-    def addRegressionModels(self, data):
-        cats= ['FG','FGA','3P','3PA','FT','FTA','TRB','AST','STL','BLK','TOV','PTS']
-        features=['G','Away','daysRest']
-        
-        # Regression Models
-        models=dict()
-        y=data[cats].convert_objects(convert_numeric=True) # must convert values to numeric, current dtype was object
-        X=data[features].convert_objects(convert_numeric=True)
-        
-        
-        models['dummyReg']=dict()
-        models['RFG']=dict()
-        
-        for cat in cats:
-            yi=y[cat]
-            
-            ## Dummy Regressor to return season averages regardless of predictions
-            dummyreg=DummyRegressor(strategy='mean')
-            dummyreg.fit(X,yi)
-            models['dummyReg'][cat]=dummyreg
-            
-            ## Random Forest Regressor
-            ### may need to use grid search to optimize/tune hyperparameters
-            RFG=RandomForestRegressor(min_samples_leaf=9)
-            RFG.fit(X,yi)
-            models['RFG'][cat]=RFG
-        
-        return models
-    
 
 class team_scraper():
     def __init__(self,teamName):
@@ -294,9 +220,8 @@ class team_scraper():
 
             df = addhomeaway(df)
             df = addDaysRest(df)
+
             game_log[season]=df
-            
-            
 
 
         # Team profile pic
@@ -313,8 +238,8 @@ class team_scraper():
 
 if __name__=="__main__":
     new=True
-   
-    team = 'Portland Trail Blazers'
+
+    team = 'Utah Jazz'
     teampkl_source = 'pkl_obj/' + team.replace(" ", "") + '.dill'
     if new==True:
         obj = team_scraper(team)
@@ -327,13 +252,12 @@ if __name__=="__main__":
 
     pkl_source = 'pkl_obj/'+playerName.replace(" ","") + '.dill'
     if new==True:
+
         obj = player_scraper(playerName)
         dill.dump(obj, open(pkl_source, 'w'))
     else:
         obj = dill.load(open(pkl_source, 'r'))
-    
-    print obj.height, obj.weight
-     '''
+    '''
 
     #df = addDaysRest(obj.df)
     #print addhomeaway(df)
