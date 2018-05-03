@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+        <!-- Bootstrap core CSS -->
+	    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+
+    <!-- Custom CSS for navbar-->
+    <style>
+    body {
+      padding-top: 50px;
+      padding-left: 110px;}
+
+
+    table {
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 50%;
+        }
+
+    td, th {
+        border: 1px solid #dddddd;
+        text-align: left;
+        padding: 8px;
+        }
+
+    tr:nth-child(even) {
+        background-color: #dddddd;
+        }
+
+    </style>
+
+
+    <meta charset="UTF-8">
+    <title>Predictions</title>
+
+
+
+
+</head>
+
+<h2> Projections for {{playerName}} on {{date}} </h2>
+
+<img src={{playerpicURL}} alt="Player Pic" width="120" height="160">
+
+
+<h3> {% if away==1 %} @ {% else %} vs {% endif %} {{opponent}}  </h3>
+
+<img src={{oppPic}} alt="Opposing Team Logo" width="200" height="150">
+
+<body>
+
+ <!-- 
+    <p> FGM = {{results['FG']}}</p>
+    <p>  FGA = {{results['FGA']}}</p>
+    <p>  FG% = {{results['FG%']}}</p>
+    <p>  FTM = {{results['FT']}}</p>
+    <p>  FTA = {{results['FTA']}}</p>
+    <p>  FT% = {{results['FT%']}}</p>
+    <p>  3PM = {{results['3P']}}</p>
+    <p>  PTS = {{results['PTS']}}</p>
+    <p>  REB = {{results['TRB']}}</p>
+    <p>  AST = {{results['AST']}}</p>
+    <p>  STL = {{results['STL']}}</p>
+    <p>  BLK = {{results['BLK']}}</p>
+    <p>  TO =  {{results['TOV']}}</p>
+-->
+
+
+
+<table>
+    {{table | safe}}
+    
+ <!-- 
+    <tr>
+    <th>Category</th>
+    <th>Season Average</th>
+    <th>Predictions</th>
+    <th>Actual</th>
+      
+  </tr>
+  <tr>
+    <td>FGM</td>
+    <td>{{results['FGA']}}</td>
+  <tr>
+    <td>FGA</td>
+    <td>{{results['FGA']}}</td>
+  </tr>
+  <tr>
+    <td>FG%</td>
+    <td> {{results['FG%']}}</td>
+
+  </tr>
+  <tr>
+    <td>FTM</td>
+    <td>{{results['FT']}}</td>
+
+  </tr>
+  <tr>
+    <td>FTA</td>
+    <td>{{results['FTA']}}</td>
+
+  </tr>
+  <tr>
+    <td>FT%</td>
+    <td>{{results['FT%']}}</td>
+
+  </tr>
+  <tr>
+    <td>3PM</td>
+    <td>{{results['3P']}}</td>
+  </tr>
+
+      <tr>
+    <td>PTS</td>
+    <td>{{results['PTS']}}</td>
+  </tr>
+
+      <tr>
+    <td>REB</td>
+    <td>{{results['TRB']}}</td>
+  </tr>
+      <tr>
+    <td>AST</td>
+    <td>{{results['AST']}}</td>
+  </tr>
+      <tr>
+    <td>STL</td>
+    <td>{{results['STL']}}</td>
+  </tr>
+      <tr>
+    <td>BLK</td>
+    <td>{{results['BLK']}}</td>
+  </tr>
+          <tr>
+    <td>TO</td>
+    <td>{{results['TOV']}}</td>
+  </tr>
+
+-->
+    
+</table>
+
+
+
+ <!-- navigation -->
+ <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+      <div class="container">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#nav-1">
+          <span class="sr-only">Toggle navigation</span>
+          </button>
+          <span class="navbar-brand">Fantasy Basketball Projections App</span>
+        </div>
+
+        <div class="collapse navbar-collapse" id="nav-1">
+          <ul class="nav navbar-nav">
+            <li class="nav-item active">
+              <a class="nav-link" href="/index">Home<span class="sr-only">(current)</span></a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/about">About</a>
+            </li>
+
+
+          </ul>
+
+        </div>
+      </div>
+    </nav>
+
+</body>
+</html>
