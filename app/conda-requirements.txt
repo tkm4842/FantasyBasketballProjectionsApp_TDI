@@ -1,8 +1,8 @@
-pandas
+
 bokeh
-dill
+scipy
 flask
 jinja2
 pip
 simplejson
-scikit-learn
+beautifulsoup4

@@ -11,3 +11,4 @@ WORKDIR /opt/app
 RUN conda install --yes --file /tmp/conda-requirements.txt
 
 CMD gunicorn --bind 0.0.0.0:$PORT wsgi
+

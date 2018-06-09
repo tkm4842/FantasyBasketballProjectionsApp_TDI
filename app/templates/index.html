@@ -40,8 +40,11 @@
 
 
 
-        <h3> Please enter a Player Name and a Game Date  </h3>    
-        
+        <h3> Please enter a Player Name and a Game Date for the 2017-18 NBA Regular Season  </h3>    
+
+        <h4> {% if player == 1 %} Submitted player name is not valid. Please try again. {% else %}  {% endif %} </h4>
+        <h4> {% if date == 1 %} Submitted date is not valid. Please try again. {% else %}  {% endif %} </h4>
+
         
       <div class="row">
         <div class="col-lg-3 text-left">
@@ -66,10 +69,13 @@
             </p>
         </form>
 
+
       </div>
     </div>
 
     </div>
+
+
 
 
 

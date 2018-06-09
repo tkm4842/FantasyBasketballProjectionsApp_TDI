@@ -113,12 +113,15 @@
        {{ data_table | safe }} </div>
     
     
-    <h4> Click on a category to show the corresponding feature importance values </h4>
+    <h4> Click on a category to show the corresponding feature importance values and opposing team rating relative to all NBA teams </h4>
 
     <div id="div1">  </div>
 
     <div id="div2">  </div>
 
+    <div id="div3">  </div>
+
+    <div id="div4">  </div>
 
 
  <!-- navigation -->
@@ -157,11 +160,18 @@
      $(document).ready(function() {
          $(".dataframe").find("tr").click( function(){
              var row = $(this).find('th').text();
-             $.post('/plot', {'cat':row,'playername':"{{div_dict['playerName']}}",'date':"{{div_dict['date']}}"}, function(a){ 
-                 console.log(a);
-                 $('#div1').html(a['div']);
-                 $('#div2').html(a['script']);
+             $.post('/plot', {'cat':row,'playername':"{{div_dict['playerName']}}",'date':"{{div_dict['date']}}"}, 
+                function(a){ 
+                  console.log(a);
+                  $('#div1').html(a['div']);
+                  $('#div2').html(a['script']);
                   });
+             $.post('plot2', {'team':"{{div_dict['opponent']}}",'cat':'Opp'+row},
+                function(b){
+                  console.log(b);
+                  $('#div3').html(b['div']);
+                  $('#div4').html(b['script']);
+                });
              });
        });
         

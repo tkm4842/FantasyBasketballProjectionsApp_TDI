@@ -10,26 +10,20 @@ import os
 import pandas as pd
 import re
 import requests
-from selenium import webdriver
 from sklearn.dummy import DummyRegressor
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestRegressor
 from string import ascii_lowercase
 
 pd.options.mode.chained_assignment = None
-
-player_base_url = 'https://www.basketball-reference.com/players/'
-
 def getPlayerURLdict(new=False):
+    player_base_url = 'https://www.basketball-reference.com/players/'
     if new==True:
         all_names = dict()
-        chromedriver = os.path.expanduser('~/Downloads/chromedriver')
-        driver = webdriver.Chrome(chromedriver)
         for letter in ascii_lowercase:
             letter_url = player_base_url+letter
-            driver.get(letter_url)
-            htmlSource = driver.page_source
-            soup = BeautifulSoup(htmlSource, 'html.parser')
+            page = requests.get(letter_url)
+            soup = BeautifulSoup(page.content, 'html.parser')
             current_names = soup.findAll('strong')
             names = []
             for _, n in enumerate(current_names):
@@ -56,32 +50,24 @@ def getPlayerURLdict(new=False):
 
 
 
-
-team_base_url = 'https://www.basketball-reference.com/teams/'
-
-
-def getTeamURLdict(new=False):
+def getTeamURLdict(new=False):  
     if new==True:
         all_names = dict()
-        chromedriver = os.path.expanduser('~/Downloads/chromedriver')
-        driver = webdriver.Chrome(chromedriver)
-
-        driver.get(team_base_url)
-        htmlSource = driver.page_source
-        soup = BeautifulSoup(htmlSource, 'html.parser')
-
+        team_base_url = 'https://www.basketball-reference.com/teams/'
+        page = requests.get(team_base_url)
+        soup = BeautifulSoup(page.content, 'html.parser')
         divs = soup.findAll('div', attrs={'class': 'overthrow table_container', 'id': 'div_teams_active'})
         all_teams = [ [{team.get_text():team['href']} for team in div.findAll('a',href=True)] for div in  divs  ]
-
-
+        exception_teams={'Charlotte Hornets':'CHO','Brooklyn Nets':'BRK','New Orleans Pelicans':'NOP'}
         with open('teamURL.csv', 'wb') as output:
             writer = csv.writer(output)
             for each in all_teams[0]:
                 for key, value in each.iteritems():
-                    full_link='http://www.basketball-reference.com'+value
+                    if key in exception_teams:
+                        value='/teams/'+exception_teams[key]+'/'
+                    full_link=value
                     writer.writerow([key, full_link])
 
-        driver.close()
     else:
         reader=  csv.reader(open('teamURL.csv', 'r'))
         d = {}
@@ -142,19 +128,13 @@ def addTeamGameLog(df,season):
 
 def getTeamSchedule(team,season):
     teamscheduleURL='https://www.basketball-reference.com/teams/'+team+'/'+str(season)+'_games.html'
-    chromedriver = os.path.expanduser('~/Downloads/chromedriver')
-    driver = webdriver.Chrome(chromedriver)
-    driver.get(teamscheduleURL)
-    htmlSource = driver.page_source
- 
-    soup = BeautifulSoup(htmlSource, 'html.parser')
+    page = requests.get(teamscheduleURL)
+    soup = BeautifulSoup(page.content, 'html.parser')
     table = soup.find('div', class_="overthrow table_container", id="div_games")
     df = pd.read_html(table.prettify())[0]
     df = df[df.G != 'G']
-
     filename= 'TeamSchedules/'+str(season)+'/'+team+'.csv'
     df.to_csv(filename)
-    driver.close()
     return df
 
 
@@ -281,8 +261,6 @@ class teamScraper():
 
         teamURLdict = getTeamURLdict()
         teamURL = teamURLdict[self.teamName]
-        #chromedriver = os.path.expanduser('~/Downloads/chromedriver')
-        #driver = webdriver.Chrome(chromedriver)
         url = 'https://www.basketball-reference.com'+teamURL
         #url = re.sub('\.html$', '', url)
 
@@ -297,13 +275,16 @@ class teamScraper():
 
         for season in seasons:
             teamGameLogURL = url+season+'/gamelog'
+            print teamGameLogURL
             page = requests.get(teamGameLogURL)
             soup = BeautifulSoup(page.content, 'html.parser')    
+            
 
             #soup = BeautifulSoup(htmlSource, 'html.parser')
 
             # Game Logs
             table = soup.find('div', class_="overthrow table_container", id="div_tgl_basic")
+            
             df = pd.read_html(table.prettify())[0]
             df = df.dropna(axis=1, how='all')
             df.columns=cols
@@ -328,17 +309,22 @@ class teamScraper():
 
 
 if __name__=="__main__":
-    new=True
-    '''
-    team = 'Portland Trail Blazers'
-    teampkl_source = 'pkl_obj/' + team.replace(" ", "") + '.dill'
-    if new==True:
-        obj = teamScraper(team)
-        dill.dump(obj, open(teampkl_source, 'w'))
-    else:
-        obj = dill.load(open(teampkl_source, 'r'))
+
 
     '''
+    getTeamURLdict(True)
+    new=True
+    
+    team_list = ['Brooklyn Nets']
+    for team in team_list:
+        teampkl_source = 'pkl_obj/' + team.replace(" ", "") + '.dill'
+        if new==True:
+            obj = teamScraper(team)
+            dill.dump(obj, open(teampkl_source, 'w'))
+        else:
+            obj = dill.load(open(teampkl_source, 'r'))
+
+    
     playerName='Damian Lillard'
 
     pkl_source = 'pkl_obj/'+playerName.replace(" ","") + '.dill'
@@ -349,7 +335,7 @@ if __name__=="__main__":
         obj = dill.load(open(pkl_source, 'r'))
     
     print obj.height, obj.weight
-    
+    '''
 
     #df = addDaysRest(obj.df)
     #print addhomeaway(df)

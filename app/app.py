@@ -3,7 +3,7 @@ from bokeh.embed import components
 from bokeh.models.widgets import DataTable, DateFormatter, TableColumn
 from bokeh.transform import factor_cmap
 from bokeh.io import show, output_notebook, curdoc
-from bokeh.models import ColumnDataSource, Whisker
+from bokeh.models import ColumnDataSource, Whisker, Label
 from bokeh.plotting import figure
 import bokeh.layouts as layouts
 import bokeh.models.widgets as widgets
@@ -42,9 +42,14 @@ features = ['G', #game number
 			]
 
 def get_data(playerName):
+
     pkl_source = 'pkl_obj/' + playerName.replace(" ", "") + '.dill'
-    a = dill.load(open(pkl_source, 'r'))
+    try:
+        a=dill.load(open(pkl_source, 'r'))
+    except IOError:
+        a=None
     return a
+
 
 
 
@@ -54,23 +59,20 @@ def get_teamdata(teamName):
     return a
 
 def getOpponent(team, date_input,season=2018):
+    filename = 'TeamSchedules/'+str(season)+'/'+team+'.csv'
+    df = pd.read_csv(filename,index_col='Date',infer_datetime_format=True)
+    df.index = [dt.datetime.strptime(date, '%a, %b %d, %Y') for date in df.index]
+    
 
-	filename = 'TeamSchedules/'+str(season)+'/'+team+'.csv'
-	df = pd.read_csv(filename,index_col='Date',infer_datetime_format=True)
-	#pr dt.datetime.strptime(df['Date'],
-	df.index = [dt.datetime.strptime(date, '%a, %b %d, %Y') for date in df.index]
-
-	if df.loc[date_input,'Unnamed: 5']=='@':
+    if df.loc[date_input,'Unnamed: 5']=='@':
 		away=1
-	else:
+    else:
 		away=0
 
-	oppteam = df.loc[date_input,'Opponent']
-
-	oppobj = get_teamdata(oppteam)
-	pic_opp=oppobj.pic
-
-	return df.loc[date_input,'Opponent'], away, pic_opp
+    oppteam = df.loc[date_input,'Opponent']
+    oppobj = get_teamdata(oppteam)
+    pic_opp=oppobj.pic
+    return df.loc[date_input,'Opponent'], away, pic_opp
 
 
 def analyzer(obj, date, opp_obj, season='2018'):
@@ -142,27 +144,69 @@ def getTeamURLdict():
     
 
 def create_featureimp_plot(obj, cat='PTS'):
-
     RFG=obj.models['2018']['RFG'][cat]
     features=['Game Number','Days Rest','Home/Away','Opponent Rating']
     groups= features
     counts = RFG.feature_importances_
-
     chart_data = ColumnDataSource(data=dict(groups=groups, counts=counts))
-
     p = figure(x_range=groups, plot_height=500, toolbar_location=None, title="Feature Importance - "+cat, y_range=(0,1.1))
-    
+
     p.vbar(x='groups', top='counts', width=0.9, source=chart_data, 
            line_color='white', fill_color=factor_cmap('groups', palette=["#962980","#295f96","#29966c","#f1d4Af" ],
                                                       factors=groups))
 
-    
     p.xgrid.grid_line_color = None
     p.title.text_font_size = '18pt'
-    p.xaxis.major_label_text_font_size = '15pt'
-    p.yaxis.major_label_text_font_size = '15pt'
-    
+    p.xaxis.major_label_text_font_size = '14pt'
+    p.yaxis.major_label_text_font_size = '16pt'
     return p
+
+
+def createteamRatingPlot(team,cat):
+    if cat=='OppPTS':
+        cat='OppPts'
+    cats=[cat]
+    df=pd.read_csv('teamRatings.csv',index_col=0) # averages of all teams
+    df=df[cats]
+    # find the quartiles and IQR for each category
+    q1 = df.quantile(q=0.25)
+    q2 = df.quantile(q=0.5)
+    q3 = df.quantile(q=0.75)
+    iqr = q3 - q1
+
+    p = figure(tools="save", background_fill_color="#EFE8E2", title="All NBA Teams: Rating for " +cat, 
+               x_range=cats)
+    
+    # if no outliers, shrink lengths of stems to be no longer than the minimums or maximums
+    qmin = df.quantile(q=0.00)
+    qmax = df.quantile(q=1.00)
+
+    # stems
+    p.segment(cats, qmax, cats, q3[cats], line_color="black")
+    p.segment(cats, qmin, cats, q1[cats], line_color="black")
+
+    # boxes
+    p.vbar(cats, 0.7, q2[cats], q3[cats], fill_color="#E08E79", line_color="black")
+    p.vbar(cats, 0.7, q1[cats], q2[cats], fill_color="#3B8686", line_color="black")
+
+    # whiskers (almost-0 height rects simpler than segments)
+    p.rect(cats, qmin, 0.5, 0.01, line_color="black")
+    p.rect(cats, qmax, 0.5, 0.01, line_color="black")
+    
+    # add team
+    p.rect(cats, df.loc[team,cat],1, 0.01, line_color="red")
+    team_text = Label(x=0.18, y=df.loc[team,cat], text=team, text_color='red',text_font_size='16pt')
+    p.add_layout(team_text)
+
+    #labels
+    p.xgrid.grid_line_color = None
+    p.ygrid.grid_line_color = "white"
+    p.grid.grid_line_width = 2
+    p.xaxis.major_label_text_font_size="14pt"
+    p.yaxis.axis_label_text_font_size="16pt"
+    p.yaxis.major_label_text_font_size="16pt"
+    p.title.text_font_size="18pt"
+    return p 
 
 @app.route('/')
 def hello():
@@ -175,15 +219,30 @@ def index():
 	else:
 		playerName=request.form['playername']
 		date=request.form['date']
-
 		obj=get_data(playerName)
-		playerpicURL=obj.pic_url
-		data=obj.game_log['2018']
-		team = obj.team
-		opponent, away, oppPic = getOpponent(team,date)
+        if obj==None:
+            return render_template('index.html',player=1)
+
+        playerpicURL=obj.pic_url
+        data=obj.game_log['2018']
+
+        try:
+            dt.datetime.strptime(date, '%m/%d/%y')
+        except ValueError:
+            return render_template('index.html',date=1)
+        if dt.datetime.strptime(date, '%m/%d/%y').strftime('%Y-%m-%d') not in data['Date'].values:
+            return render_template('index.html',date=1)
+
+
+
+
+        team = obj.team
+        opponent, away, oppPic = getOpponent(team,date)
         
-		results, feature_inputs = analyzer(obj, date, get_teamdata(opponent))
         
+        
+        results, feature_inputs = analyzer(obj, date, get_teamdata(opponent))
+            
         
         
         # Create feature importance plot with Bokeh
@@ -217,16 +276,19 @@ def plot():
     playerName=params['playername']
     date=params['date']
     cat=params['cat']
-
     obj=get_data(playerName)
-    
     feature_imp_plot = create_featureimp_plot(obj,cat)
     script, div = components(feature_imp_plot)
-    
-    
     return jsonify({'script':script,'div': div})
     
-
+@app.route('/plot2',methods=['POST'])
+def plot2():
+    params=request.form.to_dict()
+    team=params['team']
+    cat=params['cat']
+    teamRatingPlot=createteamRatingPlot(team,cat)
+    script, div = components(teamRatingPlot)
+    return jsonify({'script':script,'div': div})
     
 @app.route('/about', methods=['GET','POST'])
 def about():
@@ -236,8 +298,8 @@ def about():
 
 
 if __name__ == '__main__':
-	#app.run(port=5003,debug=True)
-	app.run()
+	app.run(port=5003,debug=True)
+	#app.run()
 	playerName='Damian Lillard'
 	obj=get_data(playerName)
 	data=obj.game_log['2018']

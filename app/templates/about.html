@@ -16,6 +16,12 @@
       padding-top: 20px;
       padding-bottom: 20px;}
 
+    #ProjectValueText, #ProjectMethodologyText {
+        font-family: "HelveticaNeue-Light";
+        font-size: 18px;
+
+         }
+
     img class=“img-responsive” {
         padding-bottom: 20px;
         }
@@ -27,20 +33,41 @@
     <meta charset="UTF-8">
     <h1>Project Value </h1>
 
-    <img class=“img-responsive” src={{url_for('static', filename='projectvaluegraphic.png')}} height="520" width="1100" />
+    <ul id='ProjectValueText'>
+      <li>59.3 million people in US and Canada that played fantasy sports in 2017.</li>
+      <li>Total of $18 billion is spent on fantasy sports annually. By comparison, $140 billion is wagered on real sports and $70 billion is spent 
+        in lotteries.
+      </li>
+      <li>Although there are a multitude of websites online that allows free access to historical data, only a few provide projections for future 
+        performance which likely charge some sort of fee nor give specifics of how those projections are made. Developing accurate projections would 
+        provide a competitive edge. 
+      </li>
+    </ul>
+
+    <img class=“img-responsive” src={{url_for('static', filename='growth-fantasy-sports.png')}} height="400" width="700" align="middle" />
 
 
+
+    <h1>Project Methodology </h1>
+    <ul id='ProjectMethodologyText'>
+    <li>Data scraping and wrangling was performed with Requests and Beautiful Soup. Further data manipulation and organization was performed with Pandas.
+      </li>
+      <li>Regression analysis and feature importances were derived from Random Forest Regressors.
+        </li> 
+      <li>Visualizations were made using Matplotlib/Seaborn and Bokeh.
+        </li> 
+      <li>Web application was developed using HTML stack: JavaScript, JQuery, Ajax, CSS/Bootstrap.
+        </li> 
+      <li>Web application was deployed using Flask, Heroku and Docker. 
+        </li> 
+    </ul>
 <!--
-    <h1>Predictive Modeling Methodology - Regression Analysis </h1>
 
-
-
-
-    <img class=“img-responsive” src={{url_for('static', filename='regressionanalysisgraphic.png')}} height="540" width="1125"/>
-
+    <img class=“img-responsive” src={{url_for('static', filename='ProjectMethodology.png')}} height="360" width="625"/>
+-->
     <p>     </p>
 
--->
+
 </head>
 <body>
 
