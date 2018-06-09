@@ -16,5 +16,5 @@
 - Data scraping and wrangling was performed with Requests and Beautiful Soup. Further data manipulation and organization was performed with Pandas.
 - Regression analysis and feature importances were derived from Random Forest Regressors.
 - Visualizations were made using Matplotlib/Seaborn and Bokeh.
-- Web application backend was developed using Flask, frontend with the HTML stack: JavaScript, JQuery, Ajax, CSS/Bootstrap.
+- Web application backend was developed using Flask, front end with HTML/CSS (Bootstrap) and JavaScript (JQuery, Ajax)
 - Web application was deployed using Heroku and Docker.
